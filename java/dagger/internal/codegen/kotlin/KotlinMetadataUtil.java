@@ -18,6 +18,7 @@ package dagger.internal.codegen.kotlin;
 
 import static com.google.auto.common.AnnotationMirrors.getAnnotatedAnnotations;
 import static com.google.auto.common.MoreElements.isAnnotationPresent;
+import static dagger.internal.codegen.extension.DaggerStreams.toImmutableMap;
 import static dagger.internal.codegen.langmodel.DaggerElements.closestEnclosingTypeElement;
 import static kotlinx.metadata.Flag.Class.IS_COMPANION_OBJECT;
 import static kotlinx.metadata.Flag.Class.IS_DATA;
@@ -26,7 +27,9 @@ import static kotlinx.metadata.Flag.IS_PRIVATE;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import dagger.internal.codegen.extension.DaggerCollectors;
+import dagger.internal.codegen.kotlin.KotlinMetadata.FunctionMetadata;
 import java.lang.annotation.Annotation;
 import java.util.Optional;
 import javax.inject.Inject;
@@ -160,6 +163,17 @@ public final class KotlinMetadataUtil {
   public boolean containsConstructorWithDefaultParam(TypeElement typeElement) {
     return hasMetadata(typeElement)
         && metadataFactory.create(typeElement).containsConstructorWithDefaultParam();
+  }
+
+  public ImmutableMap<String, String> getAllMethodSignaturesForElement(TypeElement element) {
+    return hasMetadata(element)
+        ? metadataFactory.create(element).classMetadata().functionsBySignature().values().stream()
+            .collect(toImmutableMap(FunctionMetadata::signature, metadata -> metadata.name()))
+        : ImmutableMap.of();
+  }
+
+  public String getSignatureForFunctionMetadata(FunctionMetadata metadata) {
+    return metadata.signature();
   }
 
   /**

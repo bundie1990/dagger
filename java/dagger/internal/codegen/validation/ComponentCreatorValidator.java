@@ -34,6 +34,7 @@ import dagger.internal.codegen.binding.ComponentCreatorAnnotation;
 import dagger.internal.codegen.binding.ErrorMessages;
 import dagger.internal.codegen.binding.ErrorMessages.ComponentCreatorMessages;
 import dagger.internal.codegen.javapoet.TypeNames;
+import dagger.internal.codegen.kotlin.KotlinMetadataUtil;
 import dagger.internal.codegen.langmodel.DaggerElements;
 import dagger.internal.codegen.langmodel.DaggerTypes;
 import java.util.HashMap;
@@ -58,11 +59,14 @@ public final class ComponentCreatorValidator implements ClearableCache {
   private final DaggerElements elements;
   private final DaggerTypes types;
   private final Map<TypeElement, ValidationReport<TypeElement>> reports = new HashMap<>();
+  private final KotlinMetadataUtil metadataUtil;
 
   @Inject
-  ComponentCreatorValidator(DaggerElements elements, DaggerTypes types) {
+  ComponentCreatorValidator(
+      DaggerElements elements, DaggerTypes types, KotlinMetadataUtil metadataUtil) {
     this.elements = elements;
     this.types = types;
+    this.metadataUtil = metadataUtil;
   }
 
   @Override
@@ -206,6 +210,7 @@ public final class ComponentCreatorValidator implements ClearableCache {
     }
 
     private void validateBuilder() {
+      ComponentValidator.validatMethodNameForClass(type, report, metadataUtil);
       ExecutableElement buildMethod = null;
       for (ExecutableElement method : elements.getUnimplementedMethods(type)) {
         switch (method.getParameters().size()) {

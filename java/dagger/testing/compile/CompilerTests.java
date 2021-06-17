@@ -29,6 +29,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import com.tschuchort.compiletesting.KotlinCompilation;
+import dagger.internal.codegen.ComponentProcessor;
 
 /**
  * A helper class for working with java compiler tests.
@@ -51,6 +53,18 @@ public final class CompilerTests {
   /** Returns a {@link Compiler} with the compiler deps jar added to the class path. */
   public static Compiler compiler() {
     return javac().withClasspath(ImmutableList.of(compilerDepsJar()));
+  }
+
+  public static KotlinCompilation kotlinCompiler() {
+    KotlinCompilation compilation = new KotlinCompilation();
+    compilation.setAnnotationProcessors(ImmutableList.of(new ComponentProcessor()));
+    compilation.setClasspaths(
+        ImmutableList.<java.io.File>builder()
+            .addAll(compilation.getClasspaths())
+            .add(compilerDepsJar())
+            .build()
+    );
+    return compilation;
   }
 
   private static File getRunfilesDir() {

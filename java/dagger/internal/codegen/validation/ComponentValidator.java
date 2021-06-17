@@ -50,6 +50,7 @@ import static javax.lang.model.util.ElementFilter.methodsIn;
 import com.google.auto.common.MoreTypes;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
@@ -65,6 +66,7 @@ import dagger.internal.codegen.binding.ErrorMessages;
 import dagger.internal.codegen.binding.MethodSignatureFormatter;
 import dagger.internal.codegen.binding.ModuleKind;
 import dagger.internal.codegen.javapoet.TypeNames;
+import dagger.internal.codegen.kotlin.KotlinMetadataUtil;
 import dagger.internal.codegen.langmodel.DaggerElements;
 import dagger.internal.codegen.langmodel.DaggerTypes;
 import dagger.producers.ProductionComponent;
@@ -79,6 +81,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -105,6 +108,7 @@ public final class ComponentValidator implements ClearableCache {
   private final MethodSignatureFormatter methodSignatureFormatter;
   private final DependencyRequestFactory dependencyRequestFactory;
   private final Map<TypeElement, ValidationReport<TypeElement>> reports = new HashMap<>();
+  private final KotlinMetadataUtil metadataUtil;
 
   @Inject
   ComponentValidator(
@@ -115,7 +119,8 @@ public final class ComponentValidator implements ClearableCache {
       DependencyRequestValidator dependencyRequestValidator,
       MembersInjectionValidator membersInjectionValidator,
       MethodSignatureFormatter methodSignatureFormatter,
-      DependencyRequestFactory dependencyRequestFactory) {
+      DependencyRequestFactory dependencyRequestFactory,
+      KotlinMetadataUtil metadataUtil) {
     this.elements = elements;
     this.types = types;
     this.moduleValidator = moduleValidator;
@@ -124,6 +129,7 @@ public final class ComponentValidator implements ClearableCache {
     this.membersInjectionValidator = membersInjectionValidator;
     this.methodSignatureFormatter = methodSignatureFormatter;
     this.dependencyRequestFactory = dependencyRequestFactory;
+    this.metadataUtil = metadataUtil;
   }
 
   @Override
@@ -241,6 +247,7 @@ public final class ComponentValidator implements ClearableCache {
     }
 
     private void validateComponentMethods() {
+      validatMethodNameForClass(component, report, metadataUtil);
       elements.getUnimplementedMethods(component).stream()
           .map(ComponentMethodValidator::new)
           .forEachOrdered(ComponentMethodValidator::validateMethod);
@@ -522,6 +529,24 @@ public final class ComponentValidator implements ClearableCache {
   // TODO(dpb): Does this break for ECJ?
   private boolean overridesAsDeclared(ExecutableElement overrider, ExecutableElement overridden) {
     return elements.overrides(overrider, overridden, asType(overrider.getEnclosingElement()));
+  }
+
+  public static void validatMethodNameForClass(
+      TypeElement element,
+      ValidationReport.Builder<TypeElement> report,
+      KotlinMetadataUtil metadataUtil) {
+    ImmutableMap<String, String> methodNames =
+        metadataUtil.getAllMethodSignaturesForElement(element);
+    if (!methodNames.isEmpty()) {
+      ImmutableList<String> keywords =
+          methodNames.entrySet().stream()
+              .filter(map -> SourceVersion.isKeyword(map.getValue()))
+              .map(Map.Entry::getKey)
+              .collect(toImmutableList());
+      if (!keywords.isEmpty()) {
+        report.addError("Do not use Java keyword as method name:\n" + String.join("\n", keywords));
+      }
+    }
   }
 
   private static final TypeVisitor<Void, ValidationReport.Builder<?>> CHECK_DEPENDENCY_TYPES =
