@@ -40,6 +40,7 @@ import static dagger.internal.codegen.extension.DaggerStreams.toImmutableSet;
 import static dagger.internal.codegen.langmodel.DaggerElements.getAnnotationMirror;
 import static dagger.internal.codegen.langmodel.DaggerElements.getAnyAnnotation;
 import static dagger.internal.codegen.langmodel.DaggerElements.isAnnotationPresent;
+import static java.util.Arrays.stream;
 import static java.util.Comparator.comparing;
 import static javax.lang.model.element.ElementKind.CLASS;
 import static javax.lang.model.element.ElementKind.INTERFACE;
@@ -59,6 +60,7 @@ import com.squareup.javapoet.ClassName;
 import dagger.Component;
 import dagger.internal.codegen.base.ClearableCache;
 import dagger.internal.codegen.base.ComponentAnnotation;
+import dagger.internal.codegen.binding.ComponentCreatorKind;
 import dagger.internal.codegen.binding.ComponentKind;
 import dagger.internal.codegen.binding.DependencyRequestFactory;
 import dagger.internal.codegen.binding.ErrorMessages;
@@ -77,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.lang.model.element.AnnotationMirror;
@@ -96,6 +99,12 @@ import javax.lang.model.util.SimpleTypeVisitor8;
  */
 @Singleton
 public final class ComponentValidator implements ClearableCache {
+  private static final ImmutableSet<String> FACTORY_METHOD =
+      Stream.concat(
+              stream(ComponentCreatorKind.values()).map(ComponentCreatorKind::methodName),
+              Stream.of("create"))
+          .collect(toImmutableSet());
+
   private final DaggerElements elements;
   private final DaggerTypes types;
   private final ModuleValidator moduleValidator;
@@ -263,6 +272,10 @@ public final class ComponentValidator implements ClearableCache {
 
       void validateMethod() {
         validateNoTypeVariables();
+        // Creator methods are not auto-generated for subcomponents.
+        if (!componentAnnotation().isSubcomponent()) {
+          validateMethodNameDoesNotConflictWithStaticCreatorNames();
+        }
 
         // abstract methods are ones we have to implement, so they each need to be validated
         // first, check the return type. if it's a subcomponent, validate that method as
@@ -291,6 +304,13 @@ public final class ComponentValidator implements ClearableCache {
       private void validateNoTypeVariables() {
         if (!resolvedMethod.getTypeVariables().isEmpty()) {
           report.addError("Component methods cannot have type variables", method);
+        }
+      }
+
+      private void validateMethodNameDoesNotConflictWithStaticCreatorNames() {
+        if (FACTORY_METHOD.contains(method.getSimpleName().toString())
+            && method.getParameters().isEmpty()) {
+          report.addError("Cannot override generated method: " + method);
         }
       }
 
